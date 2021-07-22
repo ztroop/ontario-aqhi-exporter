@@ -94,9 +94,9 @@ func fetchForecast(s string) Forecast {
 					f.Station = ele.Text
 				case 1:
 					f.Current = getLevel(ele.Text)
-				case 3:
+				case 2:
 					f.Upcoming = getLevel(ele.Text)
-				case 4:
+				case 3:
 					f.Tomorrow = getLevel(ele.Text)
 				}
 			})
