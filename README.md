@@ -1,5 +1,8 @@
 # Ontario AQHI Exporter
 
+[![build](https://github.com/ztroop/ontario-aqhi-exporter/actions/workflows/build.yml/badge.svg)](https://github.com/ztroop/ontario-aqhi-exporter/actions/workflows/build.yml)
+[![docker pulls](https://img.shields.io/docker/pulls/ztroop/ontario-aqhi-exporter)](https://hub.docker.com/r/ztroop/ontario-aqhi-exporter)
+
 A simple scraper and prometheus exporter for Ontario Air Quality Health Index (AQHI) data. This fetches data from the [Air Quality Ontario](http://www.airqualityontario.com/aqhi/index.php) website. A proper API would've been preferable, but you work with what ya got.
 
 ## Configuration
