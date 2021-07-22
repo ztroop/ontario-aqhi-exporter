@@ -1,0 +1,12 @@
+version: '3.2'
+services:
+  ontario-aqhi-exporter:
+    image: ontario-aqhi-exporter:latest
+    build: .
+    ports:
+    - 8085:8085
+    environment:
+    - LISTEN_ADDR=0.0.0.0:8085
+    - SCRAPE_URL=http://www.airqualityontario.com/aqhi/index.php
+    - STATION_LOCATION=KITCHENER
+    restart: unless-stopped
