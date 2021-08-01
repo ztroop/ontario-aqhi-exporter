@@ -52,15 +52,15 @@ func (c *ForecastCollector) Collect(ch chan<- prometheus.Metric) {
 func NewAQHICollector(station string) *ForecastCollector {
 	return &ForecastCollector{
 		station: station,
-		current: prometheus.NewDesc("current_aqhi_level",
+		current: prometheus.NewDesc("ontario_current_aqhi_level",
 			"Current AQHI level",
 			[]string{"station"}, nil,
 		),
-		upcoming: prometheus.NewDesc("upcoming_aqhi_level",
+		upcoming: prometheus.NewDesc("ontario_upcoming_aqhi_level",
 			"Upcoming AQHI level",
 			[]string{"station"}, nil,
 		),
-		tomorrow: prometheus.NewDesc("tomorrow_aqhi_level",
+		tomorrow: prometheus.NewDesc("ontario_tomorrow_aqhi_level",
 			"Tomorrow AQHI level",
 			[]string{"station"}, nil,
 		),
