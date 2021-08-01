@@ -88,18 +88,18 @@ func fetchForecast(s string) Forecast {
 	c.OnHTML("table[class=\"resourceTable\"] tbody", func(e *colly.HTMLElement) {
 		e.ForEach("tr", func(_ int, row *colly.HTMLElement) {
 			f := Forecast{}
-			row.ForEach("td", func(_ int, ele *colly.HTMLElement) {
-				switch ele.Index {
-				case 0:
-					f.Station = ele.Text
-				case 1:
-					f.Current = getLevel(ele.Text)
-				case 2:
-					f.Upcoming = getLevel(ele.Text)
-				case 3:
-					f.Tomorrow = getLevel(ele.Text)
-				}
-			})
+			columns := row.ChildTexts("td")
+			if len(columns) == 4 {
+				f.Station = columns[0]
+				f.Current = getLevel(columns[1])
+				f.Upcoming = getLevel(columns[2])
+				f.Tomorrow = getLevel(columns[3])
+			} else if len(columns) > 4 {
+				f.Station = columns[0]
+				f.Current = getLevel(columns[1])
+				f.Upcoming = getLevel(columns[3])
+				f.Tomorrow = getLevel(columns[4])
+			}
 			forecast = append(forecast, f)
 		})
 	})
