@@ -11,7 +11,7 @@ A simple scraper and prometheus exporter for Ontario Air Quality Health Index (A
 |----------------------------|-----------------------------|---------------------------- |------------------------------------------------------------------------------------------------------------------|
 | `LISTEN_ADDR`           | `listen`            | `127.0.0.1:8085`                     | Network address for `/metrics` to listen on |
 | `SCRAPE_URL`           | `scrape`            | `http://www.airqualityontario.com/aqhi/index.php`                     | Default URL to scrape from |
-| `STATION_LOCATION`           | `station`            | `Kitchener`                     | Default URL to scrape from |
+| `CACHE_TTL`           | `cache`            | `300`                     | Seconds to cache data |
 
 To see what stations are available, [see the website](http://www.airqualityontario.com/aqhi/locations.php?text_only=1).
 
@@ -41,7 +41,7 @@ There's a few different ways you can interact with this software, below are a fe
 ### Docker
 
 ```sh
-docker run -d --restart on-failure --name=ontario-aqhi-exporter -p 8085:8085 ztroop/ontario-aqhi-exporter -station Kitchener -listen 127.0.0.1:8085
+docker run -d --restart on-failure --name=ontario-aqhi-exporter -p 8085:8085 ztroop/ontario-aqhi-exporter
 ```
 
 ### Docker Compose
@@ -57,7 +57,7 @@ services:
     environment:
     - LISTEN_ADDR=0.0.0.0:8085
     - SCRAPE_URL=http://www.airqualityontario.com/aqhi/index.php
-    - STATION_LOCATION=KITCHENER
+    - CACHE_TTL=300
     restart: unless-stopped
 ```
 
