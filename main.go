@@ -6,8 +6,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
+	"time"
 
+	"github.com/ReneKroon/ttlcache/v2"
 	"github.com/gocolly/colly/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -15,10 +16,11 @@ import (
 )
 
 var (
-	qualityLevel           = regexp.MustCompile("([0-9]+)")
-	listenAddr      string = "127.0.0.1:8085"
-	scrapeURL       string = "http://www.airqualityontario.com/aqhi/index.php"
-	stationLocation string = "KITCHENER"
+	qualityLevel        = regexp.MustCompile("([0-9]+)")
+	listenAddr   string = "127.0.0.1:8085"
+	scrapeURL    string = "http://www.airqualityontario.com/aqhi/index.php"
+	cacheTTL     string = "300"
+	notFound            = ttlcache.ErrNotFound
 )
 
 type Forecast struct {
@@ -29,7 +31,7 @@ type Forecast struct {
 }
 
 type ForecastCollector struct {
-	station  string
+	Cache    ttlcache.SimpleCache
 	current  *prometheus.Desc
 	upcoming *prometheus.Desc
 	tomorrow *prometheus.Desc
@@ -42,16 +44,24 @@ func (c *ForecastCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ForecastCollector) Collect(ch chan<- prometheus.Metric) {
-	forecast := fetchForecast(c.station)
+	var forecast []Forecast
+	if val, err := c.Cache.Get("AQHI"); err != notFound || val != nil {
+		forecast = val.([]Forecast)
+	} else {
+		forecast = fetchForecast()
+		c.Cache.Set("AQHI", forecast)
+	}
 
-	ch <- prometheus.MustNewConstMetric(c.current, prometheus.GaugeValue, forecast.Current, forecast.Station)
-	ch <- prometheus.MustNewConstMetric(c.upcoming, prometheus.GaugeValue, forecast.Upcoming, forecast.Station)
-	ch <- prometheus.MustNewConstMetric(c.tomorrow, prometheus.GaugeValue, forecast.Tomorrow, forecast.Station)
+	for _, l := range forecast {
+		ch <- prometheus.MustNewConstMetric(c.current, prometheus.GaugeValue, l.Current, l.Station)
+		ch <- prometheus.MustNewConstMetric(c.upcoming, prometheus.GaugeValue, l.Upcoming, l.Station)
+		ch <- prometheus.MustNewConstMetric(c.tomorrow, prometheus.GaugeValue, l.Tomorrow, l.Station)
+	}
 }
 
-func NewAQHICollector(station string) *ForecastCollector {
+func NewAQHICollector(cache *ttlcache.SimpleCache) *ForecastCollector {
 	return &ForecastCollector{
-		station: station,
+		Cache: *cache,
 		current: prometheus.NewDesc("ontario_current_aqhi_level",
 			"Current AQHI level",
 			[]string{"station"}, nil,
@@ -81,7 +91,7 @@ func getLevel(i string) float64 {
 	}
 }
 
-func fetchForecast(s string) Forecast {
+func fetchForecast() []Forecast {
 	forecast := []Forecast{}
 	c := colly.NewCollector()
 
@@ -114,29 +124,30 @@ func fetchForecast(s string) Forecast {
 
 	c.Visit(scrapeURL)
 
-	for _, v := range forecast {
-		if strings.ToUpper(v.Station) == s {
-			return v
-		}
-	}
-
-	return Forecast{}
+	return forecast
 }
 
-func lookupEnvOrString(key string, defaultVal string) string {
+func lookupEnvOrString(key string, defaultVal *string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
 	}
-	return defaultVal
+	return *defaultVal
 }
 
 func main() {
-	flag.StringVar(&listenAddr, "listen", lookupEnvOrString("LISTEN_ADDR", listenAddr), "specify address to bind with port")
-	flag.StringVar(&scrapeURL, "scrape", lookupEnvOrString("SCRAPE_URL", scrapeURL), "specify url to fetch from")
-	flag.StringVar(&stationLocation, "station", lookupEnvOrString("STATION_LOCATION", stationLocation), "specify weather station")
+	flag.StringVar(&listenAddr, "listen", lookupEnvOrString("LISTEN_ADDR", &listenAddr), "specify address to bind with port")
+	flag.StringVar(&scrapeURL, "scrape", lookupEnvOrString("SCRAPE_URL", &scrapeURL), "specify url to fetch from")
+	flag.StringVar(&cacheTTL, "cache", lookupEnvOrString("CACHE_TTL", &cacheTTL), "seconds to cache data")
 	flag.Parse()
 
-	airQualityCollector := NewAQHICollector(strings.ToUpper(stationLocation))
+	var cache ttlcache.SimpleCache = ttlcache.NewCache()
+	ttl, err := strconv.ParseUint(cacheTTL, 10, 64)
+	if err != nil {
+		log.Fatal("Invalid TTL value: ", err)
+	}
+	cache.SetTTL(time.Duration(ttl) * time.Second)
+
+	airQualityCollector := NewAQHICollector(&cache)
 	prometheus.MustRegister(airQualityCollector)
 
 	http.Handle("/metrics", promhttp.Handler())
