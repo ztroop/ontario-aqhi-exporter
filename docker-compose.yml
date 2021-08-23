@@ -8,5 +8,5 @@ services:
     environment:
     - LISTEN_ADDR=0.0.0.0:8085
     - SCRAPE_URL=http://www.airqualityontario.com/aqhi/index.php
-    - STATION_LOCATION=KITCHENER
+    - CACHE_TTL=300
     restart: unless-stopped

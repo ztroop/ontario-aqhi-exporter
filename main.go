@@ -31,7 +31,7 @@ type Forecast struct {
 }
 
 type ForecastCollector struct {
-	Cache    ttlcache.SimpleCache
+	Cache    *ttlcache.Cache
 	current  *prometheus.Desc
 	upcoming *prometheus.Desc
 	tomorrow *prometheus.Desc
@@ -59,9 +59,9 @@ func (c *ForecastCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func NewAQHICollector(cache *ttlcache.SimpleCache) *ForecastCollector {
+func NewAQHICollector(cache *ttlcache.Cache) *ForecastCollector {
 	return &ForecastCollector{
-		Cache: *cache,
+		Cache: cache,
 		current: prometheus.NewDesc("ontario_current_aqhi_level",
 			"Current AQHI level",
 			[]string{"station"}, nil,
@@ -134,23 +134,41 @@ func lookupEnvOrString(key string, defaultVal *string) string {
 	return *defaultVal
 }
 
+func withLogging(h http.Handler) http.Handler {
+	loggingFn := func(w http.ResponseWriter, req *http.Request) {
+		h.ServeHTTP(w, req)
+		log.WithFields(log.Fields{
+			"host":   req.RemoteAddr,
+			"uri":    req.RequestURI,
+			"method": req.Method,
+		}).Info("Incoming Request")
+	}
+	return http.HandlerFunc(loggingFn)
+}
+
 func main() {
 	flag.StringVar(&listenAddr, "listen", lookupEnvOrString("LISTEN_ADDR", &listenAddr), "specify address to bind with port")
 	flag.StringVar(&scrapeURL, "scrape", lookupEnvOrString("SCRAPE_URL", &scrapeURL), "specify url to fetch from")
 	flag.StringVar(&cacheTTL, "cache", lookupEnvOrString("CACHE_TTL", &cacheTTL), "seconds to cache data")
 	flag.Parse()
 
-	var cache ttlcache.SimpleCache = ttlcache.NewCache()
-	ttl, err := strconv.ParseUint(cacheTTL, 10, 64)
+	cache := ttlcache.NewCache()
+	ttl, err := strconv.Atoi(cacheTTL)
 	if err != nil {
 		log.Fatal("Invalid TTL value: ", err)
 	}
 	cache.SetTTL(time.Duration(ttl) * time.Second)
+	cache.SkipTTLExtensionOnHit(true)
 
-	airQualityCollector := NewAQHICollector(&cache)
+	expirationCallback := func(key string, _ ttlcache.EvictionReason, _ interface{}) {
+		log.Info("Cache expired for key: ", key)
+	}
+	cache.SetExpirationReasonCallback(expirationCallback)
+
+	airQualityCollector := NewAQHICollector(cache)
 	prometheus.MustRegister(airQualityCollector)
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", withLogging(promhttp.Handler()))
 	log.Info("Serving on " + listenAddr)
 	log.Fatal(http.ListenAndServe(listenAddr, nil))
 }
